@@ -223,6 +223,20 @@ const css = `
   .score-inner{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
 `;
 
+// ── GOOGLE SHEETS ──────────────────────────────────────────────────────────
+const SHEETS_URL = "https://script.google.com/macros/s/AKfycbwf8XyglObqxikcG7QAOezjQB573VMFIIIppY7PGB6jozqst6royRpxurb4I_vdBaCh/exec";
+
+async function enviarASheets(fitxa) {
+  try {
+    await fetch(SHEETS_URL, {
+      method: "POST", mode: "no-cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fitxa),
+    });
+    return true;
+  } catch(e) { return false; }
+}
+
 // ── COMPONENT ──────────────────────────────────────────────────────────────
 export default function App() {
   const [pas, setPas] = useState("inici");
@@ -238,6 +252,7 @@ export default function App() {
   const [data_revisio, setDataRevisio] = useState("");
   const [geo, setGeo] = useState(null);
   const [geo_loading, setGeoLoading] = useState(false);
+  const [sync_estat, setSyncEstat] = useState(null); // "guardant"|"ok"|"error"
 
   // Preguntes visibles donades les respostes actuals
   const visibles = preguntesVisibles(respostes);
@@ -268,7 +283,7 @@ export default function App() {
     setPas("diagnosi");
   }
 
-  function guardarFitxa() {
+  async function guardarFitxa() {
     const risc_auto = calcularRisc(respostes);
     const nf = risc_override || risc_auto.nivell;
     const C = {BAIX:"#2d6a4f",MITJÀ:"#9c5d00",ALT:"#8b1a1a"};
@@ -289,6 +304,11 @@ export default function App() {
     };
     setFitxes(f => [...f, fitxa]);
     setPas("resultat");
+    // Enviar a Google Sheets en segon pla
+    setSyncEstat("guardant");
+    const ok = await enviarASheets(fitxa);
+    setSyncEstat(ok ? "ok" : "error");
+    setTimeout(() => setSyncEstat(null), 4000);
   }
 
   function capturarGeo() {
@@ -601,6 +621,16 @@ export default function App() {
                   <div style={{fontFamily:"Anton,sans-serif",fontSize:"1.6rem",textTransform:"uppercase",color:"#2c3e50",marginBottom:4}}>{ultimaFitxa.nom||"Comerç"}</div>
                   <div style={{fontSize:".8rem",color:"#5d6d7e"}}>{ultimaFitxa.barri&&`${ultimaFitxa.barri} · `}{ultimaFitxa.num} · {ultimaFitxa.data}</div>
                   <div style={{marginTop:12}}><span className="urg" style={{background:r.bg,color:r.color}}>⏱ {URGENCIA[r.nivell].text}</span></div>
+                  {/* Indicador sync */}
+                  {sync_estat && (
+                    <div style={{marginTop:12,padding:"8px 14px",borderRadius:3,fontSize:".78rem",fontFamily:"Barlow Condensed,sans-serif",fontWeight:700,letterSpacing:".08em",
+                      background: sync_estat==="guardant"?"#f4f4f6": sync_estat==="ok"?"#d8f3dc":"#fde8e8",
+                      color: sync_estat==="guardant"?"#5d6d7e": sync_estat==="ok"?"#2d6a4f":"#8b1a1a"}}>
+                      {sync_estat==="guardant" && "⏳ Guardant a Google Sheets..."}
+                      {sync_estat==="ok" && "✅ Guardat a Google Sheets"}
+                      {sync_estat==="error" && "⚠️ No s'ha pogut sincronitzar — comprova la connexió"}
+                    </div>
+                  )}
                 </div>
                 <div style={{display:"flex",gap:10}}>
                   <button className="bg" onClick={novaFitxa} style={{flex:1}}>+ Nova fitxa</button>
